@@ -21,7 +21,7 @@ serde_urlencoded = "*"
 http = "0"
 bytes = "*"
 angry-purple-tiger = "0"
-helium-crypto = "0.6"
+helium-crypto = { git = "https://github.com/OpenEPC/helium-crypto-rs", branch = "feature/raw_handle" }
 
 [features]
 tpm = [ "helium-crypto/tpm" ]

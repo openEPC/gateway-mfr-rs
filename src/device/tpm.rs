@@ -13,23 +13,24 @@ use crate::{
 #[derive(Debug)]
 pub struct Device {
     /// TPM key path
-    pub path: String,
+    pub key_identifier: String,
+    pub key_access_mode: String,
 }
 
 impl Device {
-    /// Parses an tpm device url of the form `tpm://tpm/<key_path>`,
+    /// Parses an tpm device url of the form `tpm://fapi/<key_path>` or `tpm://handle/<hex_handle>`,
     /// where <key_path> is the path to TPM KEY
+    /// and <hex_handle> is the persistent handle of the key in hex format.
     pub fn from_url(url: &Uri) -> Result<Self> {
-        let path = url.path();
-
         Ok(Self {
-            path: path.to_string(),
+            key_identifier: (&url.path()[1..]).parse()?,
+            key_access_mode: url.host().unwrap().parse()?
         })
     }
 
     pub fn get_info(&self) -> Result<Info> {
         Ok(Info {
-            path: self.path.clone(),
+            key_identifier: self.key_identifier.clone(),
         })
     }
 
@@ -37,9 +38,12 @@ impl Device {
         if create {
             panic!("not supported")
         }
+        let keypair = match self.key_access_mode.as_str() {
+            "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, self.key_identifier.as_str()).map(helium_crypto::Keypair::from),
+            "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&self.key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+            _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
+        }?;
 
-        let keypair = tpm::Keypair::from_key_path(Network::MainNet, self.path.as_str())
-            .map(helium_crypto::Keypair::from)?;
         Ok(keypair)
     }
 
@@ -49,42 +53,44 @@ impl Device {
 
     pub fn get_config(&self) -> Result<Config> {
         Ok(Config {
-            path: self.path.clone(),
+            key_identifier: self.key_identifier.clone(),
+            key_access_mode: self.key_access_mode.clone(),
         })
     }
 
     pub fn get_tests(&self) -> Vec<Test> {
         vec![
-            Test::MinerKey(self.path.clone()),
-            Test::Sign(self.path.clone()),
-            Test::Ecdh(self.path.clone()),
+            Test::MinerKey(self.key_identifier.clone(), self.key_access_mode.clone()),
+            Test::Sign(self.key_identifier.clone(), self.key_access_mode.clone()),
+            Test::Ecdh(self.key_identifier.clone(), self.key_access_mode.clone()),
         ]
     }
 }
 
 #[derive(Debug, Serialize)]
 pub struct Info {
-    path: String,
+    pub key_identifier: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Config {
-    path: String,
+    pub key_identifier: String,
+    pub key_access_mode: String,
 }
 
 #[derive(Debug)]
 pub enum Test {
-    MinerKey(String),
-    Sign(String),
-    Ecdh(String),
+    MinerKey(String, String),
+    Sign(String, String),
+    Ecdh(String, String),
 }
 
 impl fmt::Display for Test {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MinerKey(key_path) => f.write_fmt(format_args!("miner_key({key_path})")),
-            Self::Sign(key_path) => f.write_fmt(format_args!("sign({key_path})")),
-            Self::Ecdh(key_path) => f.write_fmt(format_args!("ecdh({key_path})")),
+            Self::MinerKey(key_identifier, _key_access_mode) => f.write_fmt(format_args!("miner_key({key_identifier})")),
+            Self::Sign(key_identifier, _key_access_mode) => f.write_fmt(format_args!("sign({key_identifier})")),
+            Self::Ecdh(key_identifier, _key_access_mode) => f.write_fmt(format_args!("ecdh({key_identifier})")),
         }
     }
 }
@@ -92,32 +98,41 @@ impl fmt::Display for Test {
 impl Test {
     pub fn run(&self) -> TestResult {
         match self {
-            Self::MinerKey(key_path) => check_miner_key(key_path),
-            Self::Sign(key_path) => check_sign(key_path),
-            Self::Ecdh(key_path) => check_ecdh(key_path),
+            Self::MinerKey(key_identifier, key_access_mode) => check_miner_key(key_identifier, key_access_mode),
+            Self::Sign(key_identifier, key_access_mode) => check_sign(key_identifier, key_access_mode),
+            Self::Ecdh(key_identifier, key_access_mode) => check_ecdh(key_identifier, key_access_mode),
         }
     }
 }
 
-fn check_miner_key(key_path: &str) -> TestResult {
-    let keypair = tpm::Keypair::from_key_path(Network::MainNet, key_path)
-        .map(helium_crypto::Keypair::from)?;
+fn check_miner_key(key_identifier: &str, key_access_mode: &str) -> TestResult {
+    let keypair = match key_access_mode {
+        "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
+        "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+        _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
+    }?;
     test::pass(keypair.public_key()).into()
 }
 
-fn check_sign(key_path: &str) -> TestResult {
+fn check_sign(key_identifier: &str, key_access_mode: &str) -> TestResult {
     const DATA: &[u8] = b"hello world";
-    let keypair = tpm::Keypair::from_key_path(Network::MainNet, key_path)
-        .map(helium_crypto::Keypair::from)?;
+    let keypair = match key_access_mode {
+        "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
+        "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+        _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
+    }?;
     let signature = keypair.sign(DATA)?;
     keypair.public_key().verify(DATA, &signature)?;
     test::pass("ok").into()
 }
 
-fn check_ecdh(key_path: &str) -> TestResult {
+fn check_ecdh(key_identifier: &str, key_access_mode: &str) -> TestResult {
     use rand::rngs::OsRng;
-    let keypair = tpm::Keypair::from_key_path(Network::MainNet, key_path)
-        .map(helium_crypto::Keypair::from)?;
+    let keypair = match key_access_mode {
+        "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
+        "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+        _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
+    }?;
     let other_keypair = Keypair::generate(
         KeyTag {
             network: Network::MainNet,
