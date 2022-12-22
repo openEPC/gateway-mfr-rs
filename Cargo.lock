@@ -475,7 +475,7 @@ dependencies = [
 [[package]]
 name = "helium-crypto"
 version = "0.6.0"
-source = "git+https://github.com/OpenEPC/helium-crypto-rs?branch=feature/raw_handle#ab02e44407e9fec87e6892d0592458ce95f24d95"
+source = "git+https://github.com/OpenEPC/helium-crypto-rs?branch=feature/optional_fapi#f458b243bf4a6335c7146120c6901c9804580ca1"
 dependencies = [
  "base64 0.20.0",
  "bs58",
@@ -593,9 +593,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.138"
+version = "0.2.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db6d7e329c562c5dfab7a46a2afabc8b987ab9a4834c9d1ca04dc54c1546cef8"
+checksum = "201de327520df007757c1f0adce6e827fe8562fbc28bfd9c15571c66ca1f5f79"
 
 [[package]]
 name = "libloading"

@@ -21,8 +21,10 @@ serde_urlencoded = "*"
 http = "0"
 bytes = "*"
 angry-purple-tiger = "0"
-helium-crypto = { git = "https://github.com/OpenEPC/helium-crypto-rs", branch = "feature/raw_handle" }
+helium-crypto = { git = "https://github.com/OpenEPC/helium-crypto-rs", branch = "feature/optional_fapi" }
 
 [features]
-tpm = [ "helium-crypto/tpm" ]
+tpm = []
+tpm_esys = [ "helium-crypto/tpm_esys", "tpm" ]
+tpm_fapi = [ "helium-crypto/tpm_fapi", "tpm" ]
 ecc608 = [ "helium-crypto/ecc608" ]

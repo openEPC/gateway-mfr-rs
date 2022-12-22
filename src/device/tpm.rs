@@ -3,7 +3,12 @@ use std::fmt;
 
 use serde::Serialize;
 
-use helium_crypto::{tpm, KeyTag, KeyType, Keypair, Network, Sign, Verify};
+#[cfg(feature = "tpm_fapi")]
+use helium_crypto::tpm::keypair_fapi::KeypairFapi;
+#[cfg(feature = "tpm_esys")]
+use helium_crypto::tpm::keypair_esys::KeypairHandle;
+
+use helium_crypto::{Keypair, KeyTag, KeyType, Network, Sign, Verify};
 
 use crate::{
     device::test::{self, TestResult},
@@ -39,8 +44,10 @@ impl Device {
             panic!("not supported")
         }
         let keypair = match self.key_access_mode.as_str() {
-            "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, self.key_identifier.as_str()).map(helium_crypto::Keypair::from),
-            "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&self.key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+            #[cfg(feature = "tpm_fapi")]
+            "fapi" => KeypairFapi::from_key_path(Network::MainNet, self.key_identifier.as_str()).map(helium_crypto::Keypair::from),
+            #[cfg(feature = "tpm_esys")]
+            "handle" => KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&self.key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
             _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
         }?;
 
@@ -107,8 +114,10 @@ impl Test {
 
 fn check_miner_key(key_identifier: &str, key_access_mode: &str) -> TestResult {
     let keypair = match key_access_mode {
-        "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
-        "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+        #[cfg(feature = "tpm_fapi")]
+        "fapi" => KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
+        #[cfg(feature = "tpm_esys")]
+        "handle" => KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
         _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
     }?;
     test::pass(keypair.public_key()).into()
@@ -117,8 +126,10 @@ fn check_miner_key(key_identifier: &str, key_access_mode: &str) -> TestResult {
 fn check_sign(key_identifier: &str, key_access_mode: &str) -> TestResult {
     const DATA: &[u8] = b"hello world";
     let keypair = match key_access_mode {
-        "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
-        "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+        #[cfg(feature = "tpm_fapi")]
+        "fapi" => KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
+        #[cfg(feature = "tpm_esys")]
+        "handle" => KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
         _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
     }?;
     let signature = keypair.sign(DATA)?;
@@ -129,8 +140,10 @@ fn check_sign(key_identifier: &str, key_access_mode: &str) -> TestResult {
 fn check_ecdh(key_identifier: &str, key_access_mode: &str) -> TestResult {
     use rand::rngs::OsRng;
     let keypair = match key_access_mode {
-        "fapi" => tpm::KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
-        "handle" => tpm::KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
+        #[cfg(feature = "tpm_fapi")]
+        "fapi" => KeypairFapi::from_key_path(Network::MainNet, key_identifier).map(helium_crypto::Keypair::from),
+        #[cfg(feature = "tpm_esys")]
+        "handle" => KeypairHandle::from_key_handle(Network::MainNet, u32::from_str_radix(&key_identifier[2..], 16).unwrap()).map(helium_crypto::Keypair::from),
         _ => { Err(helium_crypto::Error::invalid_keytype_str("unknown tpm key access type")) }
     }?;
     let other_keypair = Keypair::generate(
